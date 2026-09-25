@@ -1,0 +1,49 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Маленький exe: нужен установленный .NET 8 Desktop Runtime.
+      - name: Publish (small)
+        run: dotnet publish src/RAMFlow/RAMFlow.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o out/small
+
+      # Всё в одном: работает без установки .NET.
+      - name: Publish (portable)
+        run: dotnet publish src/RAMFlow/RAMFlow.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o out/portable
+
+      - name: Rename
+        shell: pwsh
+        run: |
+          Move-Item out/small/RAMFlow.exe out/RAMFlow.exe
+          Move-Item out/portable/RAMFlow.exe out/RAMFlow-portable.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RAMFlow
+          path: |
+            out/RAMFlow.exe
+            out/RAMFlow-portable.exe
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/RAMFlow.exe
+            out/RAMFlow-portable.exe
