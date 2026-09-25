@@ -15,7 +15,7 @@ public sealed class HistoryGraph : Control
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
                  ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-        BackColor = Color.FromArgb(24, 26, 30);
+        BackColor = Theme.Card;
     }
 
     public void Add(int load)
@@ -30,46 +30,66 @@ public sealed class HistoryGraph : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        var g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        int w = ClientSize.Width, h = ClientSize.Height;
+        var g = e.Graphics.Smooth();
         g.Clear(BackColor);
 
-        using (var grid = new Pen(Color.FromArgb(45, 48, 55)))
-            for (int i = 1; i < 4; i++)
-                g.DrawLine(grid, 0, h * i / 4, w, h * i / 4);
+        // Слева подписи шкалы, справа — сам график.
+        int labelW = this.S(48);
+        var area = new RectangleF(labelW, this.S(6), Width - labelW - 1, Height - this.S(12));
+        if (area.Width < 10 || area.Height < 10) return;
+
+        float Y(float load) => area.Bottom - area.Height * load / 100f;
+
+        using (var grid = new Pen(Theme.Line))
+        {
+            foreach (int v in new[] { 0, 25, 50, 75, 100 })
+            {
+                float y = Y(v);
+                g.DrawLine(grid, area.Left, y, area.Right, y);
+                if (v % 50 == 0)
+                    TextRenderer.DrawText(g, v + "%", Theme.Small, new Rectangle(0, (int)y - this.S(8), labelW - this.S(8), this.S(16)),
+                        Theme.Faint, TextFormatFlags.Right | TextFormatFlags.VerticalCenter);
+            }
+        }
 
         if (Threshold > 0)
         {
-            using var th = new Pen(Color.FromArgb(160, 230, 160, 60)) { DashStyle = DashStyle.Dash };
-            float y = h - h * Threshold / 100f;
-            g.DrawLine(th, 0, y, w, y);
+            using var th = new Pen(Color.FromArgb(170, Theme.Amber), 1.2f) { DashStyle = DashStyle.Dash };
+            g.DrawLine(th, area.Left, Y(Threshold), area.Right, Y(Threshold));
         }
 
         var pts = _points.ToArray();
         if (pts.Length < 2) return;
 
-        float step = (float)w / (Capacity - 1);
-        float x0 = w - step * (pts.Length - 1);
+        float step = area.Width / (Capacity - 1);
+        float x0 = area.Right - step * (pts.Length - 1);
         var line = new PointF[pts.Length];
         for (int i = 0; i < pts.Length; i++)
-            line[i] = new PointF(x0 + i * step, h - 1 - (h - 2) * pts[i].Load / 100f);
+            line[i] = new PointF(x0 + i * step, Y(pts[i].Load));
+
+        using (var mark = new Pen(Color.FromArgb(150, Theme.Green), 1.2f) { DashStyle = DashStyle.Dot })
+            for (int i = 0; i < pts.Length; i++)
+                if (pts[i].Cleaned)
+                    g.DrawLine(mark, line[i].X, area.Top, line[i].X, area.Bottom);
 
         using (var path = new GraphicsPath())
         {
             path.AddLines(line);
-            path.AddLine(line[^1], new PointF(line[^1].X, h));
-            path.AddLine(new PointF(line[^1].X, h), new PointF(line[0].X, h));
-            using var fill = new LinearGradientBrush(new Rectangle(0, 0, w, h),
-                Color.FromArgb(110, 70, 160, 255), Color.FromArgb(10, 70, 160, 255), 90f);
+            path.AddLine(line[^1], new PointF(line[^1].X, area.Bottom));
+            path.AddLine(new PointF(line[^1].X, area.Bottom), new PointF(line[0].X, area.Bottom));
+            using var fill = new LinearGradientBrush(area,
+                Color.FromArgb(90, Theme.Accent), Color.FromArgb(0, Theme.Accent), 90f);
             g.FillPath(fill, path);
         }
-        using (var pen = new Pen(Color.FromArgb(90, 175, 255), 1.6f))
+        using (var pen = new Pen(Theme.Accent, this.S(2f)) { LineJoin = LineJoin.Round })
             g.DrawLines(pen, line);
 
-        using var mark = new Pen(Color.FromArgb(120, 220, 120), 1f) { DashStyle = DashStyle.Dot };
-        for (int i = 0; i < pts.Length; i++)
-            if (pts[i].Cleaned)
-                g.DrawLine(mark, line[i].X, 0, line[i].X, h);
+        // Точка текущего значения.
+        var last = line[^1];
+        float d = this.S(8f);
+        using (var halo = new SolidBrush(Color.FromArgb(60, Theme.Accent)))
+            g.FillEllipse(halo, last.X - d, last.Y - d, d * 2, d * 2);
+        using (var dot = new SolidBrush(Theme.Accent))
+            g.FillEllipse(dot, last.X - d / 2, last.Y - d / 2, d, d);
     }
 }

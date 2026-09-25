@@ -121,10 +121,8 @@ public sealed class TrayApp : ApplicationContext
         using (var g = Graphics.FromImage(bmp))
         {
             g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            Color bg = pct >= Settings.ThresholdPercent ? Color.FromArgb(200, 50, 50)
-                     : pct >= Settings.ThresholdPercent - 15 ? Color.FromArgb(215, 140, 20)
-                     : Color.FromArgb(40, 120, 200);
-            using (var b = new SolidBrush(bg)) g.FillRectangle(b, 0, 0, size, size);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            Theme.FillRound(g, Theme.LoadColor(pct, Settings.ThresholdPercent), new RectangleF(0, 0, size, size), size * 0.22f);
 
             string s = pct >= 100 ? "99" : pct.ToString();
             using var font = new Font("Segoe UI", size * 0.55f, FontStyle.Bold, GraphicsUnit.Pixel);
@@ -142,7 +140,7 @@ public sealed class TrayApp : ApplicationContext
 
     private ContextMenuStrip BuildMenu()
     {
-        var m = new ContextMenuStrip();
+        var m = new ContextMenuStrip { Renderer = new DarkMenuRenderer(), ShowImageMargin = true, Font = Theme.Body };
         m.Items.Add("Очистить сейчас", null, async (_, _) => await CleanAsync(manual: true)).Font =
             new Font(m.Font, FontStyle.Bold);
         m.Items.Add("Открыть окно", null, (_, _) => ShowWindow());
