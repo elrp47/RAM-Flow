@@ -3,7 +3,6 @@ name: build
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -40,10 +39,20 @@ jobs:
             out/RAMFlow.exe
             out/RAMFlow-portable.exe
 
+      # Каждый push в main — новый релиз v1.0.<номер сборки>; тег создаёт сам GitHub.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: RAM Flow v1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            **RAMFlow.exe** — маленький, нужен [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+            **RAMFlow-portable.exe** — работает без установки .NET.
+
+            Запускается от имени администратора: без этого Windows не даёт чистить системную память.
           files: |
             out/RAMFlow.exe
             out/RAMFlow-portable.exe
